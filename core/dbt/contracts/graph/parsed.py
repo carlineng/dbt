@@ -105,7 +105,7 @@ class NodeConfig(
             del self._extra[key]
 
     def __iter__(self):
-        for fld in self._get_fields():
+        for fld, _ in self._get_fields():
             yield fld.name
 
         for key in self._extra:
@@ -156,7 +156,11 @@ class HasRelationMetadata(JsonSchemaMixin, Replaceable):
     schema: str
 
 
-class ParsedNodeMixins:
+class ParsedNodeMixins(JsonSchemaMixin):
+    resource_type: NodeType
+    depends_on: DependsOn
+    config: NodeConfig
+
     @property
     def is_refable(self):
         return self.resource_type in NodeType.refable()
@@ -430,11 +434,11 @@ class ParsedSnapshotNode(ParsedNode):
     ]
 
     @classmethod
-    def json_schema(cls, embeddable=False):
+    def json_schema(cls, embeddable: bool = False) -> Dict[str, Any]:
         schema = super().json_schema(embeddable)
 
         # mess with config
-        configs = [
+        configs: List[Tuple[str, Type[JsonSchemaMixin]]] = [
             (str(SnapshotStrategy.Check), CheckSnapshotConfig),
             (str(SnapshotStrategy.Timestamp), TimestampSnapshotConfig),
         ]
@@ -513,6 +517,14 @@ class ParsedSourceDefinition(
     columns: Dict[str, ColumnInfo] = field(default_factory=dict)
     meta: Dict[str, Any] = field(default_factory=dict)
     source_meta: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_refable(self):
+        return False
+
+    @property
+    def is_ephemeral(self):
+        return False
 
     @property
     def is_ephemeral_model(self):
