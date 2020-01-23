@@ -4,7 +4,7 @@ from datetime import timedelta
 from dbt.contracts.graph.unparsed import (
     UnparsedNode, UnparsedRunHook, UnparsedMacro, Time, TimePeriod,
     FreshnessStatus, FreshnessThreshold, Quoting, UnparsedSourceDefinition,
-    UnparsedSourceTableDefinition, UnparsedDocumentationFile, NamedTested,
+    UnparsedSourceTableDefinition, UnparsedDocumentationFile, HasTests,
     UnparsedNodeUpdate
 )
 from dbt.node_types import NodeType
@@ -409,12 +409,12 @@ class TestUnparsedNodeUpdate(ContractTestCase):
             tests=['table_test'],
             meta={'key': ['value1', 'value2']},
             columns=[
-                NamedTested(
+                HasTests(
                     name='x',
                     description='x description',
                     meta={'key2': 'value3'},
                 ),
-                NamedTested(
+                HasTests(
                     name='y',
                     description='y description',
                     tests=[

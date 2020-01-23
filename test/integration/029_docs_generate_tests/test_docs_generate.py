@@ -809,7 +809,17 @@ class TestDocsGenerate(DBTIntegrationTest):
         actual = catalog['nodes']
         self.assertEqual(expected, actual)
 
-    def verify_manifest_macros(self, manifest):
+    def verify_manifest_macros(self, manifest, expected=None):
+        self.assertIn('macros', manifest)
+        if expected is None:
+            self._verify_generic_macro_structure(manifest)
+            return
+        for unique_id, expected_macro in expected.items():
+            self.assertIn(unique_id, manifest['macros'])
+            actual_macro = manifest['macros'][unique_id]
+            self.assertEqual(expected_macro, actual_macro)
+
+    def _verify_generic_macro_structure(self, manifest):
         # just test a known global macro to avoid having to update this every
         # time they change.
         self.assertIn('macro.dbt.column_list', manifest['macros'])
@@ -819,7 +829,7 @@ class TestDocsGenerate(DBTIntegrationTest):
             {
                 'path', 'original_file_path', 'package_name', 'raw_sql',
                 'root_path', 'name', 'unique_id', 'tags', 'resource_type',
-                'depends_on'
+                'depends_on', 'meta', 'description', 'patch_path', 'docrefs',
             }
         )
         # Don't compare the sql, just make sure it exists
@@ -841,6 +851,10 @@ class TestDocsGenerate(DBTIntegrationTest):
                 'tags': [],
                 'resource_type': 'macro',
                 'depends_on': {'macros': []},
+                'description': '',
+                'patch_path': None,
+                'docrefs': [],
+                'meta': {},
             },
             without_sql,
         )
@@ -1193,6 +1207,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'nodes': [],
                     'sources': [],
                     'patches': [],
+                    'macro_patches': [],
                 },
                 normalize('models/model.sql'): {
                     'path': self._path_to('models', 'model.sql'),
@@ -1202,6 +1217,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'nodes': ['model.test.model'],
                     'sources': [],
                     'patches': [],
+                    'macro_patches': [],
                 },
                 normalize('seed/seed.csv'): {
                     'path': self._path_to('seed', 'seed.csv'),
@@ -1212,8 +1228,9 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'docs': [],
                     'macros': [],
                     'nodes': ['seed.test.seed'],
-                    'patches': [],
                     'sources': [],
+                    'patches': [],
+                    'macro_patches': [],
                 },
                 normalize('models/readme.md'): {
                     'path': self._path_to('models', 'readme.md'),
@@ -1221,8 +1238,9 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'docs': [],
                     'macros': [],
                     'nodes': [],
-                    'patches': [],
                     'sources': [],
+                    'patches': [],
+                    'macro_patches': [],
                 },
                 normalize('models/schema.yml'): {
                     'path': self._path_to('models', 'schema.yml'),
@@ -1230,8 +1248,9 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'docs': [],
                     'macros': [],
                     'nodes': ['test.test.unique_model_id', 'test.test.not_null_model_id', 'test.test.test_nothing_model_'],
-                    'patches': ['model'],
                     'sources': [],
+                    'patches': ['model'],
+                    'macro_patches': [],
                 },
                 normalize('seed/schema.yml'): {
                     'path': self._path_to('seed', 'schema.yml'),
@@ -1239,8 +1258,9 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'docs': [],
                     'macros': [],
                     'nodes': [],
-                    'patches': ['seed'],
                     'sources': [],
+                    'patches': ['seed'],
+                    'macro_patches': [],
                 },
             },
         }
@@ -1268,6 +1288,9 @@ class TestDocsGenerate(DBTIntegrationTest):
         )
         column_info = LineIndifferent(
             '{% docs column_info %}\nAn ID field\n{% enddocs %}'
+        )
+        macro_info = LineIndifferent(
+            '{% docs macro_info %}\nMy custom test that I wrote that does nothing\n{% enddocs %}'
         )
 
         return {
@@ -1681,6 +1704,16 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'root_path': self.test_root_dir,
                     'unique_id': 'test.view_summary',
                 },
+                'test.macro_info': {
+                    'block_contents': 'My custom test that I wrote that does nothing',
+                    'file_contents': macro_info,
+                    'name': 'macro_info',
+                    'original_file_path': docs_path,
+                    'package_name': 'test',
+                    'path': 'docs.md',
+                    'root_path': self.test_root_dir,
+                    'unique_id': 'test.macro_info',
+                },
             },
             'child_map': {
                 'model.test.ephemeral_copy': ['model.test.ephemeral_summary'],
@@ -1711,6 +1744,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'patches': [],
                     'path': self._path_to('macros', 'dummy_test.sql'),
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('ref_models/view_summary.sql'): {
                     'checksum': self._checksum_file('ref_models/view_summary.sql'),
@@ -1720,6 +1754,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'patches': [],
                     'path': self._path_to('ref_models', 'view_summary.sql'),
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('ref_models/ephemeral_summary.sql'): {
                     'checksum': self._checksum_file('ref_models/ephemeral_summary.sql'),
@@ -1729,6 +1764,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'patches': [],
                     'path': self._path_to('ref_models', 'ephemeral_summary.sql'),
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('ref_models/ephemeral_copy.sql'): {
                     'checksum': self._checksum_file('ref_models/ephemeral_copy.sql'),
@@ -1738,6 +1774,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'patches': [],
                     'path': self._path_to('ref_models', 'ephemeral_copy.sql'),
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('seed/seed.csv'): {
                     'checksum': {
@@ -1750,6 +1787,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'patches': [],
                     'path': self._path_to('seed', 'seed.csv'),
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('ref_models/docs.md'): {
                     'checksum': self._checksum_file('ref_models/docs.md'),
@@ -1761,12 +1799,14 @@ class TestDocsGenerate(DBTIntegrationTest):
                         'test.source_info',
                         'test.table_info',
                         'test.column_info',
+                        'test.macro_info',
                     ],
                     'macros': [],
                     'nodes': [],
                     'patches': [],
                     'path': self._path_to('ref_models', 'docs.md'),
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('ref_models/schema.yml'): {
                     'checksum': self._checksum_file('ref_models/schema.yml'),
@@ -1776,6 +1816,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'patches': ['ephemeral_summary', 'view_summary'],
                     'path': self._path_to('ref_models', 'schema.yml'),
                     'sources': ['source.test.my_source.my_table'],
+                    'macro_patches': [['test', 'test_nothing']],
                 },
                 normalize('seed/schema.yml'): {
                     'path': self._path_to('seed', 'schema.yml'),
@@ -1785,8 +1826,35 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'nodes': [],
                     'patches': ['seed'],
                     'sources': [],
+                    'macro_patches': [],
                 },
             },
+            'macros': {
+                'macro.test.test_nothing': {
+                    'name': 'test_nothing',
+                    'depends_on': {'macros': []},
+                    'description': 'My custom test that I wrote that does nothing',
+                    'raw_sql': AnyStringWith('macro test_nothing'),
+                    'original_file_path': self.dir('macros/dummy_test.sql'),
+                    'path': self.dir('macros/dummy_test.sql'),
+                    'package_name': 'test',
+                    'docrefs': [
+                        {
+                            'column_name': None,
+                            'documentation_name': 'macro_info',
+                            'documentation_package': '',
+                        },
+                    ],
+                    'meta': {
+                        'some_key': 100,
+                    },
+                    'patch_path': self.dir('ref_models/schema.yml'),
+                    'resource_type': 'macro',
+                    'unique_id': 'macro.test.test_nothing',
+                    'tags': [],
+                    'root_path': self.test_root_dir,
+                }
+            }
         }
 
     def expected_bigquery_complex_manifest(self):
@@ -2175,6 +2243,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'docs': [],
                     'nodes': [],
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('bq_models/clustered.sql'): {
                     'checksum': self._checksum_file('bq_models/clustered.sql'),
@@ -2184,6 +2253,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'docs': [],
                     'macros': [],
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('bq_models/multi_clustered.sql'): {
                     'checksum': self._checksum_file('bq_models/multi_clustered.sql'),
@@ -2193,6 +2263,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'docs': [],
                     'macros': [],
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('bq_models/nested_table.sql'): {
                     'checksum': self._checksum_file('bq_models/nested_table.sql'),
@@ -2202,6 +2273,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'docs': [],
                     'macros': [],
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('bq_models/nested_view.sql'): {
                     'checksum': self._checksum_file('bq_models/nested_view.sql'),
@@ -2211,6 +2283,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'docs': [],
                     'macros': [],
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('seed/seed.csv'): {
                     'checksum': {
@@ -2223,6 +2296,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'docs': [],
                     'macros': [],
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('bq_models/schema.yml'): {
                     'checksum': self._checksum_file('bq_models/schema.yml'),
@@ -2232,6 +2306,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'docs': [],
                     'macros': [],
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('seed/schema.yml'): {
                     'path': self._path_to('seed', 'schema.yml'),
@@ -2241,6 +2316,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'nodes': [],
                     'patches': ['seed'],
                     'sources': [],
+                    'macro_patches': [],
                 },
             },
         }
@@ -2457,6 +2533,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'nodes': [],
                     'patches': [],
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('rs_models/model.sql'): {
                     'checksum': self._checksum_file('rs_models/model.sql'),
@@ -2466,6 +2543,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'nodes': ['model.test.model'],
                     'patches': [],
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('seed/seed.csv'): {
                     'checksum': {
@@ -2478,6 +2556,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'nodes': ['seed.test.seed'],
                     'patches': [],
                     'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('rs_models/schema.yml'): {
                     'checksum': self._checksum_file('rs_models/schema.yml'),
@@ -2486,7 +2565,8 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'macros': [],
                     'nodes': [],
                     'patches': ['model'],
-                    'sources': []
+                    'sources': [],
+                    'macro_patches': [],
                 },
                 normalize('seed/schema.yml'): {
                     'path': self._path_to('seed', 'schema.yml'),
@@ -2496,6 +2576,7 @@ class TestDocsGenerate(DBTIntegrationTest):
                     'nodes': [],
                     'patches': ['seed'],
                     'sources': [],
+                    'macro_patches': [],
                 },
             },
         }
@@ -2527,7 +2608,7 @@ class TestDocsGenerate(DBTIntegrationTest):
 
         for key in manifest_keys:
             if key == 'macros':
-                self.verify_manifest_macros(manifest)
+                self.verify_manifest_macros(manifest, expected_manifest.get('macros'))
             elif key == 'generated_at':
                 self.assertBetween(manifest['generated_at'],
                                    start=self.generate_start_time)

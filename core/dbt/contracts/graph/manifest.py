@@ -3,13 +3,17 @@ import hashlib
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Union, Mapping, Any
+from typing import (
+    Dict, List, Optional, Union, Mapping, Any, Tuple, MutableMapping
+)
 from uuid import UUID
 
 from hologram import JsonSchemaMixin
 
-from dbt.contracts.graph.parsed import ParsedNode, ParsedMacro, \
-    ParsedDocumentation
+from dbt.contracts.graph.parsed import (
+    ParsedNode, ParsedMacro, ParsedDocumentation, ParsedNodePatch,
+    ParsedMacroPatch, ParsedSourceDefinition
+)
 from dbt.contracts.graph.compiled import CompileResultNode
 from dbt.contracts.util import Writable, Replaceable
 from dbt.exceptions import (
@@ -24,6 +28,7 @@ from dbt import tracking
 import dbt.utils
 
 NodeEdgeMap = Dict[str, List[str]]
+MacroKey = Tuple[str, str]
 
 
 @dataclass
@@ -130,6 +135,8 @@ class SourceFile(JsonSchemaMixin):
     sources: List[str] = field(default_factory=list)
     # any node patches in this file. The entries are names, not unique ids!
     patches: List[str] = field(default_factory=list)
+    # any macro patches in this file. The entries are pacakge, name pairs.
+    macro_patches: List[MacroKey] = field(default_factory=list)
 
     @property
     def search_key(self) -> Optional[str]:
@@ -336,7 +343,9 @@ class Manifest:
             package,
             nodetype)
 
-    def find_docs_by_name(self, name, package=None):
+    def find_docs_by_name(
+        self, name: str, package: Optional[str] = None
+    ) -> Optional[ParsedDocumentation]:
         for unique_id, doc in self.docs.items():
             parts = unique_id.split('.')
             if len(parts) != 2:
@@ -430,7 +439,29 @@ class Manifest:
                 raise_duplicate_resource_name(node, self.nodes[unique_id])
             self.nodes[unique_id] = node
 
-    def patch_nodes(self, patches):
+    def patch_macros(
+        self, patches: MutableMapping[MacroKey, ParsedMacroPatch]
+    ) -> None:
+        for macro in self.macros.values():
+            key = (macro.package_name, macro.name)
+            patch = patches.pop(key, None)
+            if not patch:
+                continue
+            macro.patch(patch)
+
+        # log debug-level warning about nodes we couldn't find
+        if patches:
+            for patch in patches.values():
+                # since patches aren't nodes, we can't use the existing
+                # target_not_found warning
+                logger.debug((
+                    'WARNING: Found documentation for macro "{}" which was '
+                    'not found or is disabled').format(patch.name)
+                )
+
+    def patch_nodes(
+        self, patches: MutableMapping[str, ParsedNodePatch]
+    ) -> None:
         """Patch nodes with the given dict of patches. Note that this consumes
         the input!
         This relies on the fact that all nodes have unique _name_ fields, not
@@ -443,12 +474,12 @@ class Manifest:
         for node in self.nodes.values():
             if node.resource_type == NodeType.Source:
                 continue
+            # appease mypy
+            assert not isinstance(node, ParsedSourceDefinition)
             patch = patches.pop(node.name, None)
             if not patch:
                 continue
             expected_key = node.resource_type.pluralize()
-            if expected_key == patch.yaml_key:
-                node.patch(patch)
             if expected_key != patch.yaml_key:
                 if patch.yaml_key == 'models':
                     deprecations.warn(
@@ -477,7 +508,7 @@ class Manifest:
                 # since patches aren't nodes, we can't use the existing
                 # target_not_found warning
                 logger.debug((
-                    'WARNING: Found documentation for model "{}" which was '
+                    'WARNING: Found documentation for resource "{}" which was '
                     'not found or is disabled').format(patch.name)
                 )
 

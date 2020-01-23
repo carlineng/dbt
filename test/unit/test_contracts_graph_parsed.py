@@ -1425,7 +1425,10 @@ class TestParsedMacro(ContractTestCase):
             'resource_type': 'macro',
             'unique_id': 'macro.test.foo',
             'tags': [],
-            'depends_on': {'macros': []}
+            'depends_on': {'macros': []},
+            'meta': {},
+            'description': 'my macro description',
+            'docrefs': [],
         }
         macro = ParsedMacro(
             name='foo',
@@ -1437,7 +1440,10 @@ class TestParsedMacro(ContractTestCase):
             resource_type=NodeType.Macro,
             unique_id='macro.test.foo',
             tags=[],
-            depends_on=MacroDependsOn()
+            depends_on=MacroDependsOn(),
+            meta={},
+            description='my macro description',
+            docrefs=[],
         )
         self.assert_symmetric(macro, macro_dict)
         self.assertEqual(macro.local_vars(), {})

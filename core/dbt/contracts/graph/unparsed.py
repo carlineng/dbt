@@ -7,7 +7,7 @@ from hologram.helpers import StrEnum, ExtensibleJsonSchemaMixin
 
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Optional, List, Union, Dict, Any
+from typing import Optional, List, Union, Dict, Any, Sequence
 
 
 @dataclass
@@ -55,11 +55,15 @@ class UnparsedRunHook(UnparsedNode):
 
 
 @dataclass
-class NamedTested(JsonSchemaMixin, Replaceable):
+class HasDocs(JsonSchemaMixin, Replaceable):
     name: str
     description: str = ''
     meta: Dict[str, Any] = field(default_factory=dict)
     data_type: Optional[str] = None
+
+
+@dataclass
+class HasTests(HasDocs):
     tests: Optional[List[Union[Dict[str, Any], str]]] = None
 
     def __post_init__(self):
@@ -68,13 +72,13 @@ class NamedTested(JsonSchemaMixin, Replaceable):
 
 
 @dataclass
-class ColumnDescription(JsonSchemaMixin, Replaceable):
-    columns: List[NamedTested] = field(default_factory=list)
+class HasColumnDocs(JsonSchemaMixin, Replaceable):
+    columns: Sequence[HasDocs] = field(default_factory=list)
 
 
 @dataclass
-class NodeDescription(NamedTested):
-    pass
+class HasColumnTests(HasColumnDocs):
+    columns: Sequence[HasTests] = field(default_factory=list)
 
 
 @dataclass
@@ -85,9 +89,19 @@ class HasYamlMetadata(JsonSchemaMixin):
 
 
 @dataclass
-class UnparsedNodeUpdate(ColumnDescription, NodeDescription, HasYamlMetadata):
+class UnparsedAnalysisUpdate(HasColumnDocs, HasDocs, HasYamlMetadata):
+    pass
+
+
+@dataclass
+class UnparsedNodeUpdate(HasColumnTests, HasTests, HasYamlMetadata):
     def __post_init__(self):
-        NodeDescription.__post_init__(self)
+        HasTests.__post_init__(self)
+
+
+@dataclass
+class UnparsedMacroUpdate(HasDocs, HasYamlMetadata):
+    pass
 
 
 class TimePeriod(StrEnum):
@@ -196,7 +210,7 @@ class Quoting(JsonSchemaMixin, Mergeable):
 
 
 @dataclass
-class UnparsedSourceTableDefinition(ColumnDescription, NodeDescription):
+class UnparsedSourceTableDefinition(HasColumnTests, HasTests):
     loaded_at_field: Optional[str] = None
     identifier: Optional[str] = None
     quoting: Quoting = field(default_factory=Quoting)
@@ -208,7 +222,7 @@ class UnparsedSourceTableDefinition(ColumnDescription, NodeDescription):
     )
 
     def __post_init__(self):
-        NodeDescription.__post_init__(self)
+        HasTests.__post_init__(self)
 
 
 @dataclass
